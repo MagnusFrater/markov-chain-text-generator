@@ -8,7 +8,7 @@ import (
 )
 
 const maxPrefixLength = 3
-const suffixLength = 1
+const maxSuffixLength = 3
 
 // Chain is a Markov Chain Text Generator.
 type Chain struct {
@@ -22,13 +22,19 @@ type Chain struct {
 }
 
 // New returns a new Chain.
-func New(prefixLength int) *Chain {
+func New(prefixLength, suffixLength int) *Chain {
 	rand.Seed(time.Now().UnixNano())
 
 	if prefixLength < 1 {
 		prefixLength = 1
 	} else if prefixLength > maxPrefixLength {
 		prefixLength = maxPrefixLength
+	}
+
+	if suffixLength < 1 {
+		suffixLength = 1
+	} else if suffixLength > maxSuffixLength {
+		suffixLength = maxSuffixLength
 	}
 
 	chain := &Chain{
@@ -43,8 +49,8 @@ func New(prefixLength int) *Chain {
 }
 
 // Add adds the given text to the Chain.
-func (c *Chain) Add(text string) {
-	words := strings.Fields(text)
+func (c *Chain) Add(corpus string) {
+	words := strings.Fields(corpus)
 	for i := range words {
 		// generate prefix
 		prefix := []string{}
@@ -99,51 +105,56 @@ func (c *Chain) Add(text string) {
 
 // Generate generates text simulating the chain.
 func (c *Chain) Generate(numWords int) string {
-	passage := []string{}
+	// for prefix := range c.chain {
+	// 	fmt.Printf("Prefix: '%s'\n", prefix)
+	// 	fmt.Printf("Suffixes: %s\n\n", strings.Join(c.chain[prefix], " | "))
+	// }
+	// return ""
 
+	corpus := []string{}
+
+	// add prefix if there's room in the corpus
 	prefix := c.randomPrefix()
-	// add prefix if there's room in the passage
 	prefixParts := strings.Fields(prefix)
 	for _, word := range prefixParts {
-		if len(passage) < numWords {
-			passage = append(passage, word)
+		if len(corpus) < numWords {
+			corpus = append(corpus, word)
 		}
 	}
 
-	for len(passage) < numWords {
-		fmt.Printf("Prefix: '%s'\n", prefix)
-
+	for len(corpus) < numWords {
 		// check if suffixes exist
 		suffix := c.randomSuffix(prefix)
+		suffixParts := strings.Fields(suffix)
 		if suffix == "" {
-			fmt.Printf("Suffix: NONE\n\n")
 			// no suffixes
 			prefix = c.randomPrefix()
 			continue
 		}
-		fmt.Printf("Suffix: '%s'\n\n", suffix)
 
 		// add suffix if there's room in the passage
-		if len(passage) < numWords {
-			passage = append(passage, suffix)
+		if len(corpus) < numWords {
+			corpus = append(corpus, suffix)
 		}
 
 		// create new prefix
 		newPrefix := []string{}
 
 		// new-prefix might contain the last bits of old-prefix depending on prefix-length
-		for i := len(prefixParts) - c.prefixLength + 1; i < len(prefixParts); i++ {
+		for i := len(prefixParts) - c.prefixLength + len(suffixParts); i < len(prefixParts); i++ {
 			newPrefix = append(newPrefix, prefixParts[i])
 		}
 
-		// new-prefix must always contain last suffix
-		newPrefix = append(newPrefix, suffix)
+		// new-prefix must always contain last-suffix
+		for _, word := range suffixParts {
+			newPrefix = append(newPrefix, word)
+		}
 
 		// reset prefix
 		prefix = strings.Join(newPrefix, " ")
 	}
 
-	return strings.Join(passage, " ")
+	return strings.Join(corpus, " ")
 }
 
 func (c *Chain) generateAllowedRunes() {

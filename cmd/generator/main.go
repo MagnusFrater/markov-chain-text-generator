@@ -19,7 +19,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	generator := markovgenerator.New(2)
+	generator := markovgenerator.New(2, 2)
 	generator.Add(string(buf))
-	fmt.Println(generator.Generate(100))
+	fmt.Println(generator.Generate(26))
 }

@@ -14,7 +14,7 @@ func TestAdd(t *testing.T) {
 		"for good": {},
 	}
 
-	chain := New(2)
+	chain := New(2, 1)
 	chain.Add("now he is gone she said he is gone for good")
 
 	if len(chain.chain) != len(testChain) {
