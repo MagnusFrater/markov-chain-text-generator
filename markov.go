@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 )
 
 const maxPrefixLength = 3
@@ -11,7 +12,8 @@ const suffixLength = 1
 
 // Chain is a Markov Chain Text Generator.
 type Chain struct {
-	chain map[string][]string
+	chain        map[string][]string
+	prefixLookup []string
 
 	prefixLength int
 	suffixLength int
@@ -21,6 +23,8 @@ type Chain struct {
 
 // New returns a new Chain.
 func New(prefixLength int) *Chain {
+	rand.Seed(time.Now().UnixNano())
+
 	if prefixLength < 1 {
 		prefixLength = 1
 	} else if prefixLength > maxPrefixLength {
@@ -29,6 +33,7 @@ func New(prefixLength int) *Chain {
 
 	chain := &Chain{
 		chain:        make(map[string][]string),
+		prefixLookup: []string{},
 		prefixLength: prefixLength,
 		suffixLength: suffixLength,
 	}
@@ -92,36 +97,53 @@ func (c *Chain) Add(text string) {
 	}
 }
 
-func (c *Chain) createPrefix(prefix string) {
-	if _, ok := c.chain[prefix]; !ok {
-		c.chain[prefix] = []string{}
-	}
-}
-
-func (c *Chain) addSuffix(prefix, suffix string) {
-	c.chain[prefix] = append(c.chain[prefix], suffix)
-}
-
 // Generate generates text simulating the chain.
 func (c *Chain) Generate(numWords int) string {
-	for prefix, suffix := range c.chain {
-		fmt.Println(prefix, suffix)
+	passage := []string{}
+
+	prefix := c.randomPrefix()
+	// add prefix if there's room in the passage
+	prefixParts := strings.Fields(prefix)
+	for _, word := range prefixParts {
+		if len(passage) < numWords {
+			passage = append(passage, word)
+		}
 	}
 
-	return ""
-}
+	for len(passage) < numWords {
+		fmt.Printf("Prefix: '%s'\n", prefix)
 
-func (c *Chain) cleanWord(word string) string {
-	return strings.ToLower(strings.Map(
-		func(r rune) rune {
-			if _, ok := c.allowedRunes[r]; ok {
-				return r
-			}
+		// check if suffixes exist
+		suffix := c.randomSuffix(prefix)
+		if suffix == "" {
+			fmt.Printf("Suffix: NONE\n\n")
+			// no suffixes
+			prefix = c.randomPrefix()
+			continue
+		}
+		fmt.Printf("Suffix: '%s'\n\n", suffix)
 
-			return -1
-		},
-		word,
-	))
+		// add suffix if there's room in the passage
+		if len(passage) < numWords {
+			passage = append(passage, suffix)
+		}
+
+		// create new prefix
+		newPrefix := []string{}
+
+		// new-prefix might contain the last bits of old-prefix depending on prefix-length
+		for i := len(prefixParts) - c.prefixLength + 1; i < len(prefixParts); i++ {
+			newPrefix = append(newPrefix, prefixParts[i])
+		}
+
+		// new-prefix must always contain last suffix
+		newPrefix = append(newPrefix, suffix)
+
+		// reset prefix
+		prefix = strings.Join(newPrefix, " ")
+	}
+
+	return strings.Join(passage, " ")
 }
 
 func (c *Chain) generateAllowedRunes() {
@@ -139,6 +161,44 @@ func (c *Chain) generateAllowedRunes() {
 	for r := 'A'; r <= 'Z'; r++ {
 		c.allowedRunes[r] = struct{}{}
 	}
+}
+
+func (c *Chain) cleanWord(word string) string {
+	return strings.ToLower(strings.Map(
+		func(r rune) rune {
+			if _, ok := c.allowedRunes[r]; ok {
+				return r
+			}
+
+			return -1
+		},
+		word,
+	))
+}
+
+func (c *Chain) createPrefix(prefix string) {
+	if _, ok := c.chain[prefix]; !ok {
+		c.chain[prefix] = []string{}
+		c.prefixLookup = append(c.prefixLookup, prefix)
+	}
+}
+
+func (c *Chain) addSuffix(prefix, suffix string) {
+	c.chain[prefix] = append(c.chain[prefix], suffix)
+}
+
+func (c *Chain) randomPrefix() string {
+	return c.prefixLookup[randNum(0, len(c.prefixLookup))]
+}
+
+func (c *Chain) randomSuffix(prefix string) string {
+	suffixes := c.chain[prefix]
+
+	if len(suffixes) == 0 {
+		return ""
+	}
+
+	return suffixes[randNum(0, len(suffixes))]
 }
 
 func randNum(min, max int) int {
