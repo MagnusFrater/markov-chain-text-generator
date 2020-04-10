@@ -1,104 +1,144 @@
-package markovgenerator
+package markov
 
 import (
 	"fmt"
 	"math/rand"
 	"strings"
-	"time"
 )
 
-const (
-	maxSequenceLength = 3
-)
+const maxPrefixLength = 3
+const suffixLength = 1
 
-// MarkovGenerator is a Markov Chain Text Generator.
-type MarkovGenerator struct {
-	dictionary     map[string][]string
-	keyLookup      []string
-	sequenceLength int
+// Chain is a Markov Chain Text Generator.
+type Chain struct {
+	chain map[string][]string
+
+	prefixLength int
+	suffixLength int
+
+	allowedRunes map[rune]struct{}
 }
 
-type connections struct {
-	dictionary map[string]int
-	keyLookup  []string
-}
-
-// New returns a new MarkovGenerator.
-func New(sequenceLength int) *MarkovGenerator {
-	rand.Seed(time.Now().UnixNano())
-
-	if sequenceLength < 1 {
-		sequenceLength = 1
-	} else if sequenceLength > 3 {
-		sequenceLength = 3
+// New returns a new Chain.
+func New(prefixLength int) *Chain {
+	if prefixLength < 1 {
+		prefixLength = 1
+	} else if prefixLength > maxPrefixLength {
+		prefixLength = maxPrefixLength
 	}
 
-	return &MarkovGenerator{
-		dictionary:     make(map[string][]string),
-		keyLookup:      []string{},
-		sequenceLength: sequenceLength,
+	chain := &Chain{
+		chain:        make(map[string][]string),
+		prefixLength: prefixLength,
+		suffixLength: suffixLength,
 	}
+	chain.generateAllowedRunes()
+
+	return chain
 }
 
-// Add adds the given text to the Dictionary.
-func (g *MarkovGenerator) Add(text string) {
+// Add adds the given text to the Chain.
+func (c *Chain) Add(text string) {
 	words := strings.Fields(text)
-	for i, word := range words {
-		g.addWord(word)
-
-		followingWords := []string{}
-		for j := 1; j <= g.sequenceLength; j++ {
-			delta := i + j
-
+	for i := range words {
+		// generate prefix
+		prefix := []string{}
+		for n := 0; n < c.prefixLength; n++ {
+			delta := i + n
 			if delta < len(words) {
-				followingWords = append(followingWords, words[delta])
-			} else {
-				break
+				cleanedWord := c.cleanWord(words[delta])
+				if cleanedWord == "" {
+					break
+				}
+
+				prefix = append(prefix, cleanedWord)
 			}
 		}
 
-		g.addConnection(word, strings.Join(followingWords, " "))
-	}
-}
-
-// Generate generates text via the Dictionary.
-func (g *MarkovGenerator) Generate(numWords int) string {
-	word := g.randomWord()
-	var passage string = fmt.Sprintf("%s ", word)
-
-	for i := 0; i < numWords/g.sequenceLength; i++ {
-		if len(g.dictionary[word]) == 0 {
-			word = g.randomWord()
-		} else {
-			word = g.randomConnection(word)
+		// malformed prefix due to 'unclean' word(s)
+		// skip suffix to maintain chain health
+		// TODO check if any non-zero length prefix is fine
+		if len(prefix) != c.prefixLength {
+			continue
 		}
 
-		passage += fmt.Sprintf("%s ", word)
+		// generate suffix
+		suffix := []string{}
+		for n := 0; n < c.suffixLength; n++ {
+			delta := i + c.prefixLength + n
+			if delta < len(words) {
+				cleanedWord := c.cleanWord(words[delta])
+				if cleanedWord == "" {
+					break
+				}
 
-		// split := strings.Fields(word)
-		// word = split[len(split)-1]
+				suffix = append(suffix, cleanedWord)
+			}
+		}
+
+		// add to chain
+		prefixString := strings.Join(prefix, " ")
+		suffixString := strings.Join(suffix, " ")
+
+		if len(suffix) == 0 && len(suffixString) > 0 {
+			fmt.Println("suffix: we have a problem here chief")
+		}
+
+		c.createPrefix(prefixString)
+
+		if len(suffixString) > 0 {
+			c.addSuffix(prefixString, suffixString)
+		}
+	}
+}
+
+func (c *Chain) createPrefix(prefix string) {
+	if _, ok := c.chain[prefix]; !ok {
+		c.chain[prefix] = []string{}
+	}
+}
+
+func (c *Chain) addSuffix(prefix, suffix string) {
+	c.chain[prefix] = append(c.chain[prefix], suffix)
+}
+
+// Generate generates text simulating the chain.
+func (c *Chain) Generate(numWords int) string {
+	for prefix, suffix := range c.chain {
+		fmt.Println(prefix, suffix)
 	}
 
-	return passage
+	return ""
 }
 
-func (g *MarkovGenerator) addWord(word string) {
-	if _, ok := g.dictionary[word]; !ok {
-		g.dictionary[word] = []string{}
-		g.keyLookup = append(g.keyLookup, word)
+func (c *Chain) cleanWord(word string) string {
+	return strings.ToLower(strings.Map(
+		func(r rune) rune {
+			if _, ok := c.allowedRunes[r]; ok {
+				return r
+			}
+
+			return -1
+		},
+		word,
+	))
+}
+
+func (c *Chain) generateAllowedRunes() {
+	c.allowedRunes = map[rune]struct{}{
+		'.': {}, '!': {}, '?': {},
+		',': {}, '\'': {},
 	}
-}
 
-func (g *MarkovGenerator) addConnection(word, connection string) {
-	g.dictionary[word] = append(g.dictionary[word], connection)
-}
+	// lowercase letters
+	for r := 'a'; r <= 'z'; r++ {
+		c.allowedRunes[r] = struct{}{}
+	}
 
-func (g *MarkovGenerator) randomWord() string {
-	return g.keyLookup[randNum(0, len(g.keyLookup))]
-}
-
-func (g *MarkovGenerator) randomConnection(word string) string {
-	return g.dictionary[word][randNum(0, len(g.dictionary[word]))]
+	// uppercase letters
+	for r := 'A'; r <= 'Z'; r++ {
+		c.allowedRunes[r] = struct{}{}
+	}
 }
 
 func randNum(min, max int) int {
