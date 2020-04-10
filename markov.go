@@ -105,11 +105,9 @@ func (c *Chain) Add(corpus string) {
 
 // Generate generates text simulating the chain.
 func (c *Chain) Generate(numWords int) string {
-	// for prefix := range c.chain {
-	// 	fmt.Printf("Prefix: '%s'\n", prefix)
-	// 	fmt.Printf("Suffixes: %s\n\n", strings.Join(c.chain[prefix], " | "))
-	// }
-	// return ""
+	if numWords < 1 {
+		numWords = 1
+	}
 
 	corpus := []string{}
 

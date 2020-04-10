@@ -21,5 +21,5 @@ func main() {
 
 	generator := markovgenerator.New(2, 2)
 	generator.Add(string(buf))
-	fmt.Println(generator.Generate(26))
+	fmt.Println(generator.Generate(-1))
 }
