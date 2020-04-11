@@ -1,25 +1,43 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 
-	markovgenerator "github.com/MagnusFrater/markov-chain-text-generator"
+	markov "github.com/MagnusFrater/markov-chain-text-generator"
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		log.Fatal("Usage: ./cmd/generator path/to/input")
+	file := flag.String("file", "", "path to text file")
+	str := flag.String("str", "", "string to add")
+	prefixLength := flag.Int("prefixLength", 2, "length of the Markov Chain's prefixes")
+	suffixLength := flag.Int("suffixLength", 2, "length of the Markov Chain's suffixes")
+	numWords := flag.Int("numWords", 100, "number of words to generate")
+	flag.Parse()
+
+	if *file == "" && *str == "" {
+		flag.Usage()
+		os.Exit(1)
 	}
 
-	buf, err := ioutil.ReadFile(os.Args[1])
-	if err != nil {
-		log.Fatal(err)
+	var corpus string
+	if *file != "" {
+		buf, err := ioutil.ReadFile(*file)
+		if err != nil {
+			log.Fatal(err)
+		}
+		corpus = string(buf)
+	} else if *str != "" {
+		corpus = *str
+	} else {
+		flag.Usage()
+		os.Exit(1)
 	}
 
-	generator := markovgenerator.New(2, 2)
-	generator.Add(string(buf))
-	fmt.Println(generator.Generate(-1))
+	generator := markov.New(*prefixLength, *suffixLength)
+	generator.Add(corpus)
+	fmt.Println(generator.Generate(*numWords))
 }
